@@ -17,5 +17,6 @@ try {
   <body>
     <h1>PHP + PostgreSQL</h1>
     <p>Postgres version: <?php echo htmlspecialchars($version); ?></p>
+    <a href="index.html">Dashboard</a>
   </body>
 </html>

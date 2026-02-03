@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DB Admin - Boxicons Edition</title>
+    <!-- Bulma CDN -->
+   <link
+  rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css"
+>
+    <!-- Boxicons CDN (Alternative to Font Awesome) -->
+    
+
+ <script src="https://unpkg.com/boxicons@2.1.4/dist/boxicons.js"></script>
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <style>
+      .aside { background-color: #ffffff; border-right: 1px solid #ededed; height: 100vh; }
+      .main-content { background-color: #fafafa; min-height: 100vh; padding: 2.5rem; }
+      .menu-list a { display: flex; align-items: center; gap: 10px; }
+      .bx { font-size: 1.25rem; }
+    </style>
+  </head>
+  <body>
+    <div class="columns is-gapless">
+      <!-- Sidebar Navigation -->
+      <aside class="column is-2 aside is-hidden-mobile">
+        <div class="p-5">
+          <p class="menu-label has-text-weight-bold">Database Manager</p>
+          <ul class="menu-list">
+            <li><a class="is-active"><i class='bx bxs-dashboard'></i> Home</a></li>
+            <li><a href="csv-import.php"><i class='bx bx-cloud-upload'></i> Upload CSV</a></li>
+            <li><a href="view-tables.php"><i class='bx bx-table'></i> View Tables</a></li>
+          </ul>
+          <p class="menu-label">Settings</p>
+          <ul class="menu-list">
+            <li><a><i class='bx bx-cog'></i> Configuration</a></li>
+            <li><a class="has-text-danger"><i class='bx bx-log-out'></i> Logout</a></li>
+          </ul>
+        </div>
+      </aside>
+
+      <!-- Main Dashboard Content -->
+      <main class="column main-content">
+        <div class="level">
+          <div class="level-left">
+            <div>
+              <h1 class="title">System Dashboard</h1>
+              <h2 class="subtitle is-6">Manage your data clusters</h2>
+            </div>
+          </div>
+        </div>
+
+        <!-- Grid Cards -->
+        <div class="columns">
+          <div class="column">
+            <div class="box">
+              <div class="media">
+                <div class="media-left">
+                  <i class='bx bx-data has-text-info' style="font-size: 2rem;"></i>
+                </div>
+                <div class="media-content">
+                  <p class="heading">Active Databases</p>
+                  <p class="title is-4">4</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="column">
+            <div class="box">
+              <div class="media">
+                <div class="media-left">
+                  <i class='bx bx-transfer-alt has-text-success' style="font-size: 2rem;"></i>
+                </div>
+                <div class="media-content">
+                  <p class="heading">Queries/Sec</p>
+                  <p class="title is-4">128</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="column">
+            <div class="box">
+              <div class="media">
+                <div class="media-left">
+                  <i class='bx bx-error-circle has-text-danger' style="font-size: 2rem;"></i>
+                </div>
+                <div class="media-content">
+                  <p class="heading">Error Logs</p>
+                  <p class="title is-4">0</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="box mt-5">
+          <div class="level">
+            <div class="level-left"><h3 class="subtitle">Recent Activity</h3></div>
+            <div class="level-right"><a class="button is-small is-white">View All</a></div>
+          </div>
+          <table class="table is-fullwidth">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Operation</th>
+                <th>Runtime</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><i class='bx bxs-circle has-text-success'></i></td>
+                <td>CSV Import: <code>users_final.csv</code></td>
+                <td>1.2s</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>
