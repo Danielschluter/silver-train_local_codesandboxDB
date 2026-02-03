@@ -1,7 +1,11 @@
 <?php
 require 'db.php';
 
-$pdo = get_db();
+$db = get_db();
+$is_sqlsrv = is_array($db) && isset($db['type']) && $db['type'] === 'sqlsrv';
+$pdo = $is_sqlsrv ? null : $db;
+$sqlsrv_conn = $is_sqlsrv ? $db['conn'] : null;
+
 $selected_table = '';
 $table_data = [];
 $columns = [];
@@ -9,12 +13,16 @@ $message = '';
 $message_type = '';
 
 // Fetch all tables
-$stmt = $pdo->query("
-    SELECT table_name FROM information_schema.tables 
-    WHERE table_schema = 'public' 
-    ORDER BY table_name
-");
-$all_tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
+if (!$is_sqlsrv) {
+    $stmt = $pdo->query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name");
+    $all_tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
+} else {
+    $all_tables = [];
+    $res = sqlsrv_query($sqlsrv_conn, "SELECT table_name FROM information_schema.tables WHERE table_schema = 'dbo' ORDER BY table_name");
+    while ($r = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC)) {
+        $all_tables[] = $r['table_name'];
+    }
+}
 
 // Handle table selection and deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -24,8 +32,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         if ($table_to_delete && $row_id && in_array($table_to_delete, $all_tables)) {
             try {
-                $delete_stmt = $pdo->prepare("DELETE FROM \"$table_to_delete\" WHERE id = ?");
-                $delete_stmt->execute([$row_id]);
+                if (!$is_sqlsrv) {
+                    $delete_stmt = $pdo->prepare("DELETE FROM \"$table_to_delete\" WHERE id = ?");
+                    $delete_stmt->execute([$row_id]);
+                } else {
+                    sqlsrv_query($sqlsrv_conn, "DELETE FROM [$table_to_delete] WHERE id = ?", [$row_id]);
+                }
                 $message = 'Row deleted successfully';
                 $message_type = 'success';
             } catch (Exception $e) {
@@ -38,7 +50,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         if ($table_to_truncate && in_array($table_to_truncate, $all_tables)) {
             try {
-                $pdo->exec("TRUNCATE TABLE \"$table_to_truncate\" RESTART IDENTITY CASCADE");
+                if (!$is_sqlsrv) {
+                    $pdo->exec("TRUNCATE TABLE \"$table_to_truncate\" RESTART IDENTITY CASCADE");
+                } else {
+                    sqlsrv_query($sqlsrv_conn, "TRUNCATE TABLE [$table_to_truncate]");
+                }
                 $message = "Table '$table_to_truncate' cleared successfully";
                 $message_type = 'success';
                 $selected_table = '';
@@ -52,17 +68,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         if ($table_to_drop && in_array($table_to_drop, $all_tables)) {
             try {
-                $pdo->exec("DROP TABLE \"$table_to_drop\"");
+                if (!$is_sqlsrv) {
+                    $pdo->exec("DROP TABLE \"$table_to_drop\"");
+                } else {
+                    sqlsrv_query($sqlsrv_conn, "DROP TABLE [$table_to_drop]");
+                }
                 $message = "Table '$table_to_drop' deleted successfully";
                 $message_type = 'success';
                 $selected_table = '';
                 // Refresh table list
-                $stmt = $pdo->query("
-                    SELECT table_name FROM information_schema.tables 
-                    WHERE table_schema = 'public' 
-                    ORDER BY table_name
-                ");
-                $all_tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                if (!$is_sqlsrv) {
+                    $stmt = $pdo->query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name");
+                    $all_tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                } else {
+                    $all_tables = [];
+                    $res = sqlsrv_query($sqlsrv_conn, "SELECT table_name FROM information_schema.tables WHERE table_schema = 'dbo' ORDER BY table_name");
+                    while ($r = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC)) {
+                        $all_tables[] = $r['table_name'];
+                    }
+                }
             } catch (Exception $e) {
                 $message = 'Error dropping table: ' . htmlspecialchars($e->getMessage());
                 $message_type = 'error';
@@ -95,40 +119,57 @@ if (isset($_GET['table']) && in_array($_GET['table'], $all_tables)) {
         $offset = ($page - 1) * $per_page;
         $total_pages = ceil($row_count / $per_page);
         
-        // Get table data
-        $data_stmt = $pdo->query("
-            SELECT * FROM \"$selected_table\" 
-            ORDER BY id DESC
-            LIMIT $per_page OFFSET $offset
-        ");
-        $table_data = $data_stmt->fetchAll(PDO::FETCH_ASSOC);
+        // Load selected table data
+        if (isset($_GET['table']) && in_array($_GET['table'], $all_tables)) {
+            $selected_table = $_GET['table'];
+    
+            try {
+                // Get column information
+                if (!$is_sqlsrv) {
+                    $col_stmt = $pdo->query("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '" . addslashes($selected_table) . "' ORDER BY ordinal_position");
+                    $columns = $col_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                    // Get row count
+                    $count_stmt = $pdo->query("SELECT COUNT(*) FROM \"$selected_table\"");
+                    $row_count = $count_stmt->fetchColumn();
+                } else {
+                    $col_res = sqlsrv_query($sqlsrv_conn, "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = ? ORDER BY ordinal_position", [$selected_table]);
+                    $columns = [];
+                    while ($r = sqlsrv_fetch_array($col_res, SQLSRV_FETCH_ASSOC)) {
+                        $columns[] = $r;
+                    }
+
+                    $count_res = sqlsrv_query($sqlsrv_conn, "SELECT COUNT(*) AS cnt FROM [$selected_table]");
+                    $count_row = sqlsrv_fetch_array($count_res, SQLSRV_FETCH_ASSOC);
+                    $row_count = $count_row['cnt'] ?? 0;
+                }
         
-    } catch (Exception $e) {
-        $message = 'Error loading table: ' . htmlspecialchars($e->getMessage());
-        $message_type = 'error';
-        $selected_table = '';
-    }
-}
-?>
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>View Tables</title>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Poppins|Inter|Montserrat">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+                // Pagination
+                $per_page = 20;
+                $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+                $offset = ($page - 1) * $per_page;
+                $total_pages = $row_count > 0 ? ceil($row_count / $per_page) : 1;
+        
+                // Get table data
+                if (!$is_sqlsrv) {
+                    $data_stmt = $pdo->query("SELECT * FROM \"$selected_table\" ORDER BY id DESC LIMIT $per_page OFFSET $offset");
+                    $table_data = $data_stmt->fetchAll(PDO::FETCH_ASSOC);
+                } else {
+                    // SQL Server pagination (OFFSET FETCH)
+                    $sql = "SELECT * FROM [$selected_table] ORDER BY id DESC OFFSET $offset ROWS FETCH NEXT $per_page ROWS ONLY";
+                    $data_res = sqlsrv_query($sqlsrv_conn, $sql);
+                    $table_data = [];
+                    while ($r = sqlsrv_fetch_array($data_res, SQLSRV_FETCH_ASSOC)) {
+                        $table_data[] = $r;
+                    }
+                }
+        
+            } catch (Exception $e) {
+                $message = 'Error loading table: ' . htmlspecialchars($e->getMessage());
+                $message_type = 'error';
+                $selected_table = '';
+            }
         }
-        body {
-            font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            /*background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);*/
-            background: #f0f2ff;
-            min-height: 100vh;
-            padding: 20px;
         }
         .container {
             max-width: 1200px;
